@@ -50,10 +50,10 @@ namespace Products.Api.Controllers
         {
             try
             {
-                await using (ServiceBusClient client = new ServiceBusClient("Endpoint=sb://productsdemoapp.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=3ZYbCvAvdeAp3QD36/mJbjydZ1jDX8mDajgIlejQhwA="))
+                await using (ServiceBusClient client = new ServiceBusClient(_configuration.GetSection("ProductsServiceBus:ConnectionString").Value))
                 {
                     // create a sender for the queue 
-                    ServiceBusSender sender = client.CreateSender("createproduct");
+                    ServiceBusSender sender = client.CreateSender(_configuration.GetSection("ProductsServiceBus:CreateProductQueueName").Value);
 
                     // create a message that we can send
                     ServiceBusMessage message = new ServiceBusMessage(JsonConvert.SerializeObject(product));

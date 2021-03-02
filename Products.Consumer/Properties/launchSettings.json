@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "Products.Consumer": {
+      "commandName": "Project"
+    }
+  }
+}

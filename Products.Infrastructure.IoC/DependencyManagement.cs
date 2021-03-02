@@ -14,19 +14,9 @@ namespace Products.Infrastructure.IoC
     {
         public static void MapDependencies(this IServiceCollection services, IConfiguration configuration)
         {
-            var path = Path.GetDirectoryName(
-                System.Reflection.Assembly.GetExecutingAssembly().GetName().CodeBase);
+            var path = "C:\\Users\\diego.zaratine\\source\\repos\\ApplicationInsightsExamples\\DB\\";
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                path = string.Concat(path, "/");
-            }
-            else
-            {
-                path = string.Concat(path, "\\");
-            }
-            path = path.Replace("file:\\", "");
-            
+
             var connection = configuration["ProductsDB:ConnectionStrings:SQLite"];
             connection = string.Format(connection, path);
 
@@ -36,6 +26,7 @@ namespace Products.Infrastructure.IoC
 
             services.AddApplicationInsightsTelemetry();
             services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddSingleton<IConfiguration>(x => configuration);
             ;
         }
     }

@@ -1,6 +1,7 @@
 ﻿using Azure.Messaging.ServiceBus;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -16,22 +17,36 @@ namespace Products.Consumer
     {
         private ILogger _logger;
         private TelemetryClient _telemetryClient;
-        IProductRepository _productRepository;
+        private IProductRepository _productRepository;
+        private IConfiguration _configuration;
 
-        public Worker(ILogger logger, TelemetryClient telemetryClient, IProductRepository productRepository)
+        public Worker(ILogger logger, TelemetryClient telemetryClient, IProductRepository productRepository, IConfiguration configuration)
         {
             _logger = logger;
             _telemetryClient = telemetryClient;
             _productRepository = productRepository;
+            _configuration = configuration;
         }
 
         private  async Task MessageHandler(ProcessMessageEventArgs args)
         {
-            string body = args.Message.Body.ToString();
-            Product product = JsonConvert.DeserializeObject<Product>(body);
-            int result = await _productRepository.Add(product);
-            _logger.LogInformation("Result: "+result.ToString());
+            try
+            {
+                string body = args.Message.Body.ToString();
+                _logger.LogInformation("Deserializing Object");
+                Product product = JsonConvert.DeserializeObject<Product>(body);
 
+                _logger.LogInformation("Adding object to Database");
+                int result = await _productRepository.Add(product);
+
+
+                _logger.LogInformation("Operation result: " + result.ToString().Replace("1", "Sucess").Replace("0", "Failed"));
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Exception: {ex.Message}");
+            }
             // complete the message. messages is deleted from the queue.
             await args.CompleteMessageAsync(args.Message);
 
@@ -50,10 +65,10 @@ namespace Products.Consumer
 
             using (_telemetryClient.StartOperation<RequestTelemetry>("ServiceBus.ReceiveMessage"))
             {
-                await using (ServiceBusClient client = new ServiceBusClient("Endpoint=sb://productsdemoapp.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=3ZYbCvAvdeAp3QD36/mJbjydZ1jDX8mDajgIlejQhwA="))
+                await using (ServiceBusClient client = new ServiceBusClient(_configuration.GetSection("ProductsServiceBus:ConnectionString").Value))
                 {
                     // create a processor that we can use to process the messages
-                    ServiceBusProcessor processor = client.CreateProcessor("createproduct", new ServiceBusProcessorOptions());
+                    ServiceBusProcessor processor = client.CreateProcessor(_configuration.GetSection("ProductsServiceBus:CreateProductQueueName").Value, new ServiceBusProcessorOptions());
 
                     // add handler to process messages
                     processor.ProcessMessageAsync += MessageHandler;
@@ -64,7 +79,6 @@ namespace Products.Consumer
                     // start processing 
                     await processor.StartProcessingAsync();
 
-                    Console.WriteLine("Wait for a minute and then press any key to end the processing");
                     Console.ReadKey();
 
                     // stop processing 
