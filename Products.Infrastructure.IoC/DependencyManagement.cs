@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Products.Domain.Interfaces;
 using Products.Infrastructure.Data;
 using System;
+using System.IO;
+using System.Runtime.InteropServices;
 
 namespace Products.Infrastructure.IoC
 {
@@ -12,19 +14,28 @@ namespace Products.Infrastructure.IoC
     {
         public static void MapDependencies(this IServiceCollection services, IConfiguration configuration)
         {
-            var connection = configuration["ProductsApi:ConnectionStrings:SQLite"];
+            var path = Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().GetName().CodeBase);
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                path = string.Concat(path, "/");
+            }
+            else
+            {
+                path = string.Concat(path, "\\");
+            }
+            path = path.Replace("file:\\", "");
+            
+            var connection = configuration["ProductsDB:ConnectionStrings:SQLite"];
+            connection = string.Format(connection, path);
+
             services.AddDbContext<ContextDB>(options =>
                 options.UseSqlite(connection)
             );
 
             services.AddApplicationInsightsTelemetry();
             services.AddScoped<IProductRepository, ProductRepository>();
-            services.AddLogging(configure =>
-                configure.AddConsole()
-                .AddDebug()
-                .AddApplicationInsights()
-                ).Configure<LoggerFilterOptions>(options => options.MinLevel = Enum.TryParse(configuration.GetSection("ProductsApi:LogLevel").Value, out LogLevel logLevel) ? logLevel : LogLevel.Error);
-
             ;
         }
     }

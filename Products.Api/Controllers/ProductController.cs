@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Azure.Messaging.ServiceBus;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Products.Domain.Entities;
 using Products.Domain.Interfaces;
 using System;
@@ -31,13 +33,11 @@ namespace Products.Api.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        [HttpGet("{id}")]
-        public async Task<IActionResult> Get([FromRoute] int id)
+        [HttpGet]
+        public async Task<IActionResult> Get()
         {
-            _logger.LogInformation($"Log de Information {DateTime.Now}");
-            _logger.LogWarning($"Log de Warning {DateTime.Now}");
-            _logger.LogError($"Log de Error {DateTime.Now}");
-            return Ok(await _productRepository.GetById(id));
+
+            return Ok(await _productRepository.Get());
         }
 
         [HttpPost]
@@ -48,30 +48,26 @@ namespace Products.Api.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Post([FromBody]Product product)
         {
-            return Ok(await _productRepository.Add(product));
-        }
+            try
+            {
+                await using (ServiceBusClient client = new ServiceBusClient("Endpoint=sb://productsdemoapp.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=3ZYbCvAvdeAp3QD36/mJbjydZ1jDX8mDajgIlejQhwA="))
+                {
+                    // create a sender for the queue 
+                    ServiceBusSender sender = client.CreateSender("createproduct");
 
-        [HttpPut]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> Put([FromBody]Product product)
-        {
-            return Ok(await _productRepository.Update(product));
-        }
+                    // create a message that we can send
+                    ServiceBusMessage message = new ServiceBusMessage(JsonConvert.SerializeObject(product));
 
-        [HttpDelete("{id}")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> Delete([FromRoute]int id)
-        {
-            var product = new Product() { ProductId = id };
-            return Ok(await _productRepository.Delete(product));
+                    // send the message
+                    await sender.SendMessageAsync(message);
+                }
+                return Ok("Solicitação de criação efetuada com sucesso");
+            }
+            catch (Exception ex)
+            {
+
+                return StatusCode(500, ex.Message);
+            }
         }
     }
 }

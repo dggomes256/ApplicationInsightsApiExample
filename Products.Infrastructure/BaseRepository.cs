@@ -30,26 +30,9 @@ namespace Products.Infrastructure.Data
             return await Db.SaveChangesAsync();
         }
 
-        public async Task<int> Delete(TEntity obj)
-        {
-            Db.Set<TEntity>().Remove(obj);
-            return await Db.SaveChangesAsync();
-        }
-
         public async Task<IEnumerable<TEntity>> Get()
         {
             return await Db.Set<TEntity>().ToListAsync();
-        }
-
-        public virtual async Task<TEntity> GetById(int id)
-        {
-            return await Db.Set<TEntity>().FindAsync(id);
-        }
-
-        public async Task<int> Update(TEntity obj)
-        {
-            Db.Entry(obj).State = EntityState.Modified;
-            return await Db.SaveChangesAsync();
         }
 
         #region IDisposable Support

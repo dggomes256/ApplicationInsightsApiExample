@@ -4,19 +4,23 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Products.Infrastructure.IoC;
 using System;
 using System.IO;
 using System.Threading.Tasks;
 
 namespace Products.Consumer
 {
-    class Program
+    internal class Program
     {
+        private static string instrumentationKey;
+        private static IConfiguration configuration;
         private static async Task Main(string[] args)
-             => await new HostBuilder()
-            .ConfigureAppConfiguration((hostingContext, config) =>
-            {
+        {
+            var builder = new HostBuilder();
 
+            builder.ConfigureAppConfiguration(config =>
+            {
                 var configuration = new ConfigurationBuilder()
                     .SetBasePath(Directory.GetCurrentDirectory())
                     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
@@ -31,30 +35,30 @@ namespace Products.Consumer
                                       .SetCacheExpiration(new TimeSpan(0, 0, 5));
                            });
                 });
-            })
-            .ConfigureLogging((hostingContext, logging) =>
+            });
+            builder.ConfigureLogging((hostingContext, logging) =>
             {
+                instrumentationKey = hostingContext.Configuration.GetSection("ProductsApi:ApplicationInsights:InstrumentationKey").Value;
+                configuration = hostingContext.Configuration;
                 logging
                 .AddConfiguration(hostingContext.Configuration.GetSection("Logging:LogLevel:Default"))
                 .AddConfiguration(hostingContext.Configuration.GetSection("Logging:ApplicationInsights:LogLevel:Default"))
                 .AddConsole()
                 .AddDebug()
-                .AddApplicationInsights();
-            })
-            .ConfigureServices(services =>
+                .AddApplicationInsights(hostingContext.Configuration.GetSection("ProductsConsumer:ApplicationInsights:InstrumentationKey").Value);
+            });
+            builder.ConfigureServices(services =>
             {
+                services.AddApplicationInsightsTelemetryWorkerService(instrumentationKey);
+                services.AddSingleton<ILogger>((opt) => opt.GetService<ILoggerFactory>()?.CreateLogger<Worker>());
                 services.AddAzureAppConfiguration();
                 services.AddSingleton<ITelemetryInitializer, CloudRoleNameTelemetryInitializer>();
-                services.AddApplicationInsightsTelemetryWorkerService();
                 services.AddSingleton(services);
-                services.AddApplicationInsightsTelemetryWorkerService();
                 services.AddHostedService<Worker>();
-            }
-                )
-            .RunConsoleAsync();
-        
+                services.MapDependencies(configuration);
 
-
-        
+            });
+            builder.RunConsoleAsync();
+        }
     }
 }
